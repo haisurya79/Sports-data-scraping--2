@@ -1,40 +1,50 @@
 import pandas as pd
+import requests
 
-# Example URL: Replace this with your preferred sports schedule source
-# Wikipedia is excellent for "Revisions" because the community updates it in minutes.
-SOURCE_URL = "https://en.wikipedia.org/wiki/2026_ICC_Men%27s_T20_World_Cup"
+# Use a User-Agent so the website thinks a real person is visiting
+HEADERS = {
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+}
+
+# The source URL
+URL = "https://en.wikipedia.org/wiki/2026_ICC_Men%27s_T20_World_Cup"
 
 def run_manual_update():
     try:
-        # 1. Fetch all tables from the page
-        tables = pd.read_html(SOURCE_URL)
-        
-        # 2. Select the specific table (usually fixtures or group stage)
-        # You may need to change the index [3] depending on the page layout
-        df = tables[3] 
+        # 1. Get the page content safely
+        response = requests.get(URL, headers=HEADERS)
+        response.raise_for_status() # Check if the site is down or blocking us
 
-        # 3. Standardize the data to your specific format
-        # Adding 'Tournament' and 'Team Count' columns manually
+        # 2. Extract all tables
+        tables = pd.read_html(response.text)
+        print(f"Found {len(tables)} tables on the page.")
+
+        if len(tables) == 0:
+            print("No tables found! Check the URL.")
+            return
+
+        # 3. Look for the "Qualified Teams" table automatically
+        # Instead of using [3], we search for a table that contains 'Method of qualification'
+        target_table = None
+        for t in tables:
+            if 'Method of qualification' in str(t.columns) or 'Team' in str(t.columns):
+                target_table = t
+                break
+        
+        if target_table is None:
+            target_table = tables[0] # Fallback to first table if search fails
+
+        # 4. Format the data
+        df = target_table.copy()
         df['Tournament Name'] = "T20 World Cup 2026"
-        df['Total Teams'] = len(df)
         
-        # 4. Clean up headers to match your request:
-        # (Tournament Name, No. of teams, Fixtures schedule, Who won what, Results)
-        # Note: This logic assumes the source table has these details.
-        output_columns = {
-            'Date': 'Fixtures Schedule',
-            'Venue': 'Location',
-            'Result': 'Results',
-            'Winner': 'Who Won What'
-        }
-        df.rename(columns=output_columns, inplace=True)
-
-        # 5. Export to CSV for your website
+        # Save it
         df.to_csv("sports_update.csv", index=False)
-        print("Success: sports_update.csv has been refreshed manually.")
+        print("Success: sports_update.csv has been refreshed.")
 
     except Exception as e:
-        print(f"Error during manual refresh: {e}")
+        print(f"FAILED: {e}")
+        exit(1) # This tells GitHub Action that it actually failed
 
 if __name__ == "__main__":
     run_manual_update()
