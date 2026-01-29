@@ -1,50 +1,60 @@
 import pandas as pd
 import requests
+from io import StringIO
+import sys
 
-# Use a User-Agent so the website thinks a real person is visiting
+# Stronger Browser Identity (User-Agent) to prevent Wikipedia blocks
 HEADERS = {
-    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
 }
 
-# The source URL
-URL = "https://www.motogp.com/en/calendar?view=list"
+# Source 1: The Master Calendar for ALL sports in 2026
+# Source 2: The T20 World Cup specific page
+SOURCES = [
+    {"name": "Global Calendar", "url": "https://en.wikipedia.org/wiki/2026_in_sports"},
+    {"name": "T20 World Cup", "url": "https://en.wikipedia.org/wiki/2026_Men%27s_T20_World_Cup"}
+]
 
 def run_manual_update():
-    try:
-        # 1. Get the page content safely
-        response = requests.get(URL, headers=HEADERS)
-        response.raise_for_status() # Check if the site is down or blocking us
+    combined_results = []
 
-        # 2. Extract all tables
-        tables = pd.read_html(response.text)
-        print(f"Found {len(tables)} tables on the page.")
+    for source in SOURCES:
+        try:
+            print(f"Accessing {source['name']}...")
+            response = requests.get(source['url'], headers=HEADERS, timeout=20)
+            response.raise_for_status()
 
-        if len(tables) == 0:
-            print("No tables found! Check the URL.")
-            return
+            # FIX: Using StringIO solves the 'FutureWarning' and ensures tables are read
+            html_content = StringIO(response.text)
+            tables = pd.read_html(html_content)
 
-        # 3. Look for the "Qualified Teams" table automatically
-        # Instead of using [3], we search for a table that contains 'Method of qualification'
-        target_table = None
-        for t in tables:
-            if 'Method of qualification' in str(t.columns) or 'Team' in str(t.columns):
-                target_table = t
-                break
-        
-        if target_table is None:
-            target_table = tables[0] # Fallback to first table if search fails
+            if not tables:
+                print(f"Warning: No tables found at {source['url']}")
+                continue
 
-        # 4. Format the data
-        df = target_table.copy()
-        df['Tournament Name'] = "T20 World Cup 2026"
-        
-        # Save it
-        df.to_csv("sports_update.csv", index=False)
-        print("Success: sports_update.csv has been refreshed.")
+            # Logic to find the most relevant table
+            # For '2026 in sports', the tables usually start from index 1 or 2
+            for i, df in enumerate(tables):
+                # We look for tables that have 'Sport' or 'Event' in the headers
+                if any(col in str(df.columns) for col in ['Sport', 'Event', 'Team', 'Venue']):
+                    df['Source_Origin'] = source['name']
+                    combined_results.append(df)
+                    break # Grab the main one and move to next source
 
-    except Exception as e:
-        print(f"FAILED: {e}")
-        exit(1) # This tells GitHub Action that it actually failed
+        except Exception as e:
+            print(f"Failed to fetch {source['name']}: {e}")
+
+    if not combined_results:
+        print("CRITICAL ERROR: No data could be scraped from any source.")
+        sys.exit(1)
+
+    # Combine all found data into one Master Schedule
+    final_df = pd.concat(combined_results, ignore_index=True)
+    
+    # Save to your CSV
+    final_df.to_csv("sports_update.csv", index=False)
+    print(f"Successfully updated 'sports_update.csv' with {len(final_df)} entries.")
 
 if __name__ == "__main__":
     run_manual_update()
+            
