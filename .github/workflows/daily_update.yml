@@ -1,7 +1,7 @@
 name: Daily Sports Update
 on:
   schedule:
-    - cron: '0 0 * * *' # Runs every day at midnight
+    - cron: '59 22 * * *' # Runs every day at midnight
 jobs:
   build:
     runs-on: ubuntu-latest
