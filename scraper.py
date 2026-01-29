@@ -2,14 +2,14 @@ import pandas as pd
 from playwright.sync_api import sync_playwright
 import re
 import sys
-import time
+from datetime import datetime, timedelta
 
 CALENDAR_URL = "https://www.motogp.com/en/calendar?view=list"
 
 def run_motogp_scraper():
     all_data = []
 
-    print("🚀 Launching Anti-NA Scraper...")
+    print("🚀 Launching Precision Scraper...")
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True)
         context = browser.new_context(viewport={'width': 1920, 'height': 1080})
@@ -17,79 +17,74 @@ def run_motogp_scraper():
 
         print(f"📡 Loading {CALENDAR_URL}...")
         page.goto(CALENDAR_URL, wait_until="networkidle", timeout=90000)
-        
-        # Give the JS extra time to "paint" the text on the screen
-        time.sleep(10)
+        page.wait_for_timeout(5000) # Safety wait for JS rendering
 
-        # Grab all race containers
         cards = page.locator('.calendar-listing__event-container').all()
-        
-        if not cards:
-            print("❌ Error: No race cards found on page.")
-            sys.exit(1)
-
-        print(f"✅ Found {len(cards)} race cards. Analyzing...")
+        print(f"✅ Found {len(cards)} race cards.")
 
         for i, card in enumerate(cards):
-            # This captures EVERYTHING inside the card, including hidden text
-            raw_text_list = card.locator('span, div, p').all_inner_texts()
-            full_text = " ".join(raw_text_list)
-            
-            # 1. Start with NAs
+            # 1. Direct Class Extraction for City/Dates
+            try:
+                city = card.locator('.calendar-listing__title').inner_text().strip()
+                date_range = card.locator('.calendar-listing__date').inner_text().strip()
+            except:
+                city = "NA"
+                date_range = "NA"
+
             row = {
                 "Sr. No": i + 1,
-                "City": "NA", "Dates": "NA",
+                "City": city,
+                "Dates": date_range,
                 "FP1": "NA", "Practice": "NA", "FP2": "NA",
                 "Q1": "NA", "Q2": "NA", "Sprint": "NA",
                 "Warm Up": "NA", "Race": "NA"
             }
 
-            # 2. Extract City & Dates (using patterns found in 2026 site)
-            # Date pattern: e.g., 27 Feb - 01 Mar
-            date_match = re.search(r'(\d{1,2}\s[A-Za-z]{3}\s-\s\d{1,2}\s[A-Za-z]{3})', full_text)
-            if date_match:
-                row["Dates"] = date_match.group(1)
-            
-            # City is usually the first uppercase block or after the number
-            # We'll pull the city/country from specific classes if possible
+            # 2. Extract Session Times with Exact Dates
+            # Example date_range: "27 FEB - 01 MAR"
+            start_date_str = date_range.split('-')[0].strip() + " 2026" # "27 FEB 2026"
             try:
-                city_el = card.locator('.calendar-listing__title')
-                if city_el.count() > 0:
-                    row["City"] = city_el.first.inner_text().strip()
+                friday_date = datetime.strptime(start_date_str, "%d %b %Y")
             except:
-                pass
+                friday_date = None
 
-            # 3. Session Time Logic
-            # We look for the exact labels from your image
-            def find_time(label):
-                # Pattern: Find "FRI / 09:15" appearing near the label
-                # We search in a window around the label index
-                match = re.search(r'([A-Z]{3}\s/\s\d{2}:\d{2})\s+' + re.escape(label), full_text, re.IGNORECASE)
-                if match:
-                    return match.group(1)
+            card_text = card.inner_text()
+            
+            def get_full_session_info(label, text, friday):
+                # Regex for "FRI / 09:15"
+                pattern = rf"([A-Z]{{3}})\s/\s(\d{{2}}:\d{{2}})\s+{re.escape(label)}"
+                match = re.search(pattern, text, re.IGNORECASE)
+                if match and friday:
+                    day_name = match.group(1).upper() # "FRI"
+                    time_val = match.group(2) # "09:15"
+                    
+                    # Map offset based on day
+                    offset = {"THU": -1, "FRI": 0, "SAT": 1, "SUN": 2}
+                    session_date = friday + timedelta(days=offset.get(day_name, 0))
+                    
+                    # Result: "27 FEB FRI / 09:15"
+                    return f"{session_date.strftime('%d %b')} {day_name} / {time_val}"
                 return "NA"
 
-            if "session times" in full_text.lower():
-                row["FP1"] = find_time("Free Practice Nr. 1")
-                row["Practice"] = find_time("Practice")
-                row["FP2"] = find_time("Free Practice Nr. 2")
-                row["Q1"] = find_time("Qualifying Nr. 1")
-                row["Q2"] = find_time("Qualifying Nr. 2")
-                row["Sprint"] = find_time("Tissot Sprint")
-                row["Warm Up"] = find_time("Warm Up")
-                row["Race"] = find_time("Grand Prix")
+            if "session times" in card_text.lower():
+                row["FP1"] = get_full_session_info("Free Practice Nr. 1", card_text, friday_date)
+                row["Practice"] = get_full_session_info("Practice", card_text, friday_date)
+                row["FP2"] = get_full_session_info("Free Practice Nr. 2", card_text, friday_date)
+                row["Q1"] = get_full_session_info("Qualifying Nr. 1", card_text, friday_date)
+                row["Q2"] = get_full_session_info("Qualifying Nr. 2", card_text, friday_date)
+                row["Sprint"] = get_full_session_info("Tissot Sprint", card_text, friday_date)
+                row["Warm Up"] = get_full_session_info("Warm Up", card_text, friday_date)
+                row["Race"] = get_full_session_info("Grand Prix", card_text, friday_date)
 
             all_data.append(row)
 
         browser.close()
 
-    # Step 4: Final Format
+    # Step 3: Export with Sequence
     df = pd.DataFrame(all_data)
-    column_order = ["Sr. No", "City", "Dates", "FP1", "Practice", "FP2", "Q1", "Q2", "Sprint", "Warm Up", "Race"]
-    df = df[column_order]
-    
-    df.to_csv("sports_update.csv", index=False)
-    print(f"📊 Success! Exported to sports_update.csv")
+    cols = ["Sr. No", "City", "Dates", "FP1", "Practice", "FP2", "Q1", "Q2", "Sprint", "Warm Up", "Race"]
+    df[cols].to_csv("sports_update.csv", index=False)
+    print("📊 Done! Check 'sports_update.csv' for the dated schedule.")
 
 if __name__ == "__main__":
     run_motogp_scraper()
