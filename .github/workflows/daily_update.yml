@@ -9,6 +9,8 @@ permissions:
 jobs:
   scrape_and_update:
     runs-on: ubuntu-latest
+    timeout-minutes: 15 # <-- Added extended time allowance
+
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
@@ -23,17 +25,17 @@ jobs:
       - name: Install Dependencies
         run: |
           pip install pandas requests playwright
-          # This installs the invisible browser
           playwright install chromium
 
-      - name: Run Scraper
+      - name: Run Deep Scraper
         run: python scraper.py
 
-      - name: Commit and Push
+      - name: Save Results
         run: |
           git config --global user.name "MotoGPBot"
           git config --global user.email "bot@motogp.com"
           git add sports_update.csv
-          git commit -m "Official Calendar Update: $(date)" || echo "No changes found"
+          # Commit only if there is a change
+          git commit -m "Detailed Schedule Update: $(date)" || echo "No changes found"
           git pull --rebase origin main
           git push origin main
