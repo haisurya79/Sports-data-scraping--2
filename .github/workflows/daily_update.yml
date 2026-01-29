@@ -1,7 +1,5 @@
 name: Manual Sports Data Refresh
 
-# This section ensures NO automatic timing. 
-# It ONLY runs when you trigger it.
 on:
   workflow_dispatch:
 
@@ -12,22 +10,22 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v3
 
-      - name: Set up Python Environment
+      - name: Set up Python
         uses: actions/setup-python@v4
         with:
           python-version: '3.9'
 
-      - name: Install Scraping Tools
-        run: pip install pandas lxml requests html5lib
+      - name: Install Libraries
+        run: |
+          pip install pandas lxml requests html5lib beautifulsoup4
 
-      - name: Execute Manual Scrape
+      - name: Execute Scraper
         run: python scraper.py
 
-      - name: Save and Push Updates to Website
+      - name: Save Results
         run: |
           git config --global user.name "ManualBot"
           git config --global user.email "bot@yourdomain.com"
           git add sports_update.csv
-          git commit -m "Manual Refresh Triggered: $(date)"
+          git commit -m "Manual Refresh: $(date)" || echo "No changes to commit"
           git push
-          
