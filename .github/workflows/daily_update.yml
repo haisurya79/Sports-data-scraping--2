@@ -1,18 +1,33 @@
-name: Daily Sports Update
+name: Manual Sports Data Refresh
+
+# This section ensures NO automatic timing. 
+# It ONLY runs when you trigger it.
 on:
-  schedule:
-    - cron: '59 22 * * *' # Runs every day at midnight
+  workflow_dispatch:
+
 jobs:
-  build:
+  scrape_and_update:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
-      - name: Run Scraper
+      - name: Checkout Repository
+        uses: actions/checkout@v3
+
+      - name: Set up Python Environment
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+
+      - name: Install Scraping Tools
+        run: pip install pandas lxml requests html5lib
+
+      - name: Execute Manual Scrape
         run: python scraper.py
-      - name: Commit results
+
+      - name: Save and Push Updates to Website
         run: |
-          git config --global user.name 'SportsBot'
-          git add daily_schedule.csv
-          git commit -m "Daily Refresh"
+          git config --global user.name "ManualBot"
+          git config --global user.email "bot@yourdomain.com"
+          git add sports_update.csv
+          git commit -m "Manual Refresh Triggered: $(date)"
           git push
           
