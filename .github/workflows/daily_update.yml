@@ -11,14 +11,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
-          fetch-depth: 0 # Fetches all history so it can sync properly
+          fetch-depth: 0 
 
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
-          python-version: '3.9'
+          python-version: '3.10'
 
       - name: Install Libraries
         run: pip install pandas lxml requests html5lib beautifulsoup4
@@ -26,19 +26,13 @@ jobs:
       - name: Execute Scraper
         run: python scraper.py
 
-      - name: Save Results
+      - name: Commit and Force Push
         run: |
           git config --global user.name "ManualBot"
           git config --global user.email "bot@yourdomain.com"
-          
-          # 1. Add the file
           git add sports_update.csv
+          git commit -m "Data Refresh: $(date)" || echo "No changes to commit"
           
-          # 2. Commit (but don't fail if nothing changed)
-          git commit -m "Manual Refresh: $(date)" || echo "No changes to commit"
-          
-          # 3. SYNC before pushing (This fixes the 'rejected' error)
+          # Pull latest changes from your browser edits to avoid 'rejected' error
           git pull --rebase origin main
-          
-          # 4. Push to the repository
           git push origin main
