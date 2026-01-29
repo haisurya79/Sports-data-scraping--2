@@ -7,7 +7,7 @@ HEADERS = {
 }
 
 # The source URL
-URL = "https://en.wikipedia.org/wiki/2026_ICC_Men%27s_T20_World_Cup"
+URL = "https://www.motogp.com/en/calendar?view=list"
 
 def run_manual_update():
     try:
