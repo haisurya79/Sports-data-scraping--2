@@ -1,106 +1,140 @@
 import pandas as pd
 from playwright.sync_api import sync_playwright
-import re
+import time
 import sys
 
-# The Official URL
-MOTOGP_URL = "https://www.motogp.com/en/calendar?view=list"
+# The Main Calendar Page
+CALENDAR_URL = "https://www.motogp.com/en/calendar?view=list"
 
-def run_official_scrape():
-    data = []
+def run_deep_scrape():
+    all_races = []
+
+    print("🚀 Launching High-Performance Scraper...")
     
-    print("Launching Headless Browser...")
     with sync_playwright() as p:
-        # Launch Chromium (headless means invisible)
+        # Launch invisible browser
         browser = p.chromium.launch(headless=True)
-        page = browser.new_page()
+        context = browser.new_context(user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+        page = context.new_page()
+
+        # Step 1: Get the List of all Race URLs
+        print(f"📡 Navigating to {CALENDAR_URL}...")
+        page.goto(CALENDAR_URL, timeout=60000)
         
-        print(f"Navigating to {MOTOGP_URL}...")
-        page.goto(MOTOGP_URL)
-        
-        # 1. Wait for the site to load the events
-        # We wait until the text "Grand Prix" appears on screen
         try:
-            page.wait_for_selector('text=Grand Prix', timeout=60000)
-            print("Page loaded successfully.")
+            # Wait for race cards to load
+            page.wait_for_selector('a.calendar-listing__event-container', timeout=30000)
         except:
-            print("Error: Page took too long or content is blocked.")
-            browser.close()
-            sys.exit(1)
+            print("⚠️ Could not load main list. Retrying...")
+            time.sleep(2)
 
-        # 2. Extract specific event containers
-        # Strategy: We look for the main container or list items.
-        # Since class names change, we grab all text and parse it with Regex
-        # or we find elements that look like race cards.
+        # Grab all links to individual events
+        # We look for links that look like "/en/event/..."
+        race_links = page.locator('a.calendar-listing__event-container').evaluate_all("els => els.map(e => e.href)")
         
-        # This selector targets the list items in the 'list' view
-        # We assume they are list items (li) or divs inside the calendar wrapper
-        events = page.locator('.calendar-listing__event-container')
-        
-        # Fallback: If specific class not found, grab all links containing 'calendar'
-        if events.count() == 0:
-            print("Using fallback selector...")
-            events = page.locator('a[href*="/calendar/"]:has-text("Grand Prix")')
+        print(f"✅ Found {len(race_links)} races. Starting deep dive...")
 
-        count = events.count()
-        print(f"Found {count} potential events.")
+        # Step 2: Loop through every single race link
+        for index, link in enumerate(race_links):
+            # initialize our data structure with "NA"
+            race_data = {
+                "Tournament": "MotoGP 2026", # Or current season
+                "Round": index + 1,
+                "Event Name": "NA",
+                "Location": "NA",
+                "FP1": "NA",
+                "Practice": "NA",
+                "FP2": "NA",
+                "Q1": "NA",
+                "Q2": "NA",
+                "Sprint": "NA",
+                "Warm Up": "NA",
+                "Race": "NA"
+            }
 
-        for i in range(count):
             try:
-                # Get the text of the entire event card
-                text_content = events.nth(i).inner_text()
+                print(f"   👉 Scraping Race {index+1}/{len(race_links)}: {link}")
+                page.goto(link, timeout=45000)
                 
-                # Use standard splitting to separate lines
-                lines = [line.strip() for line in text_content.split('\n') if line.strip()]
-                
-                # Basic parsing logic (adjust based on actual site output)
-                # Usually: Date is near top, Title contains "Grand Prix", Location is capitalized
-                
-                # Finding the "Grand Prix" name
-                gp_name = next((line for line in lines if "Grand Prix" in line), "Unknown GP")
-                
-                # Finding the Date (Regex looks for patterns like '27 Feb - 01 Mar')
-                date_match = re.search(r'\d{1,2}\s+[A-Za-z]{3}\s*-\s*\d{1,2}\s+[A-Za-z]{3}', text_content)
-                date = date_match.group(0) if date_match else "Date TBD"
-                
-                # Finding Location (Usually the line before or after the GP Name)
-                # This is a heuristic; might need tweaking after first run
-                location = "Unknown Location"
-                for line in lines:
-                    if line.isupper() and len(line) > 3 and "GRAND PRIX" not in line:
-                        location = line
-                        break
+                # Wait for the specific "Session" table to appear
+                # We wait briefly; if not found, it likely means schedule isn't out yet
+                try:
+                    page.wait_for_selector('.c-schedule-table__row', timeout=5000)
+                except:
+                    print("      ⚠️ No schedule table found (likely TBD). Keeping as NA.")
+                    all_races.append(race_data)
+                    continue
 
-                entry = {
-                    "Tournament": "MotoGP 2026",
-                    "Event Name": gp_name,
-                    "Date": date,
-                    "Location": location,
-                    "Source": "Official MotoGP.com"
-                }
-                
-                # Avoid duplicates
-                if entry not in data:
-                    data.append(entry)
+                # 2A. Get Basic Info (Name/Location) from the header
+                try:
+                    race_data["Event Name"] = page.locator('h1.event-hero__title').inner_text().strip()
+                    race_data["Location"] = page.locator('.event-hero__location').first.inner_text().strip()
+                except:
+                    race_data["Event Name"] = "Unknown GP"
+
+                # 2B. Scrape the Session Table (The screenshot part)
+                # We find all rows in the schedule table
+                rows = page.locator('.c-schedule-table__row')
+                count = rows.count()
+
+                for i in range(count):
+                    row_text = rows.nth(i).inner_text()
+                    # row_text usually looks like: "FRI 09:15 \n Free Practice Nr. 1"
+                    
+                    # Clean up text
+                    lines = [l.strip() for l in row_text.split('\n') if l.strip()]
+                    if len(lines) < 2: continue
+                    
+                    time_info = lines[0] # e.g., "FRI / 09:15"
+                    session_name = lines[1].lower() # e.g., "free practice nr. 1"
+
+                    # Map to our columns based on keywords
+                    if "free practice nr. 1" in session_name:
+                        race_data["FP1"] = time_info
+                    elif "practice" in session_name and "nr" not in session_name:
+                        race_data["Practice"] = time_info
+                    elif "free practice nr. 2" in session_name:
+                        race_data["FP2"] = time_info
+                    elif "qualifying nr. 1" in session_name:
+                        race_data["Q1"] = time_info
+                    elif "qualifying nr. 2" in session_name:
+                        race_data["Q2"] = time_info
+                    elif "sprint" in session_name:
+                        race_data["Sprint"] = time_info
+                    elif "warm up" in session_name:
+                        race_data["Warm Up"] = time_info
+                    elif "grand prix" in session_name and "race" not in session_name:
+                        # Sometimes listed as just "Grand Prix" or "MotoGP Race"
+                        race_data["Race"] = time_info
+
+                print(f"      ✅ Success! Found schedule for {race_data['Event Name']}")
 
             except Exception as e:
-                print(f"Skipping an item due to error: {e}")
-                continue
+                print(f"      ❌ Error on this page: {e}")
+            
+            all_races.append(race_data)
+            
+            # small pause to be polite to the server
+            time.sleep(1)
 
         browser.close()
 
-    if not data:
-        print("CRITICAL: No data scraped. The website structure might have changed.")
+    # Step 3: Save to CSV
+    if not all_races:
+        print("CRITICAL: No data collected.")
         sys.exit(1)
 
-    # 3. Save
-    df = pd.DataFrame(data)
+    df = pd.DataFrame(all_races)
     
-    # Clean up: Remove rows where Date is TBD if you only want confirmed ones
-    df = df[df['Date'] != "Date TBD"]
-    
+    # Reorder columns specifically for your view
+    cols = ["Round", "Event Name", "Location", "FP1", "Practice", "FP2", "Q1", "Q2", "Sprint", "Warm Up", "Race"]
+    # Ensure all cols exist even if empty
+    for c in cols:
+        if c not in df.columns: df[c] = "NA"
+            
+    df = df[cols]
     df.to_csv("sports_update.csv", index=False)
-    print(f"Success! Saved {len(df)} races to sports_update.csv")
+    print("DONE! File saved.")
 
 if __name__ == "__main__":
-    run_official_scrape()
+    run_deep_scrape()
