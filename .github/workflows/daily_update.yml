@@ -13,26 +13,27 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0 
+          fetch-depth: 0
 
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
           python-version: '3.10'
 
-      - name: Install Libraries
-        run: pip install pandas lxml requests html5lib beautifulsoup4
+      - name: Install Dependencies
+        run: |
+          pip install pandas requests playwright
+          # This installs the invisible browser
+          playwright install chromium
 
-      - name: Execute Scraper
+      - name: Run Scraper
         run: python scraper.py
 
-      - name: Commit and Force Push
+      - name: Commit and Push
         run: |
-          git config --global user.name "ManualBot"
-          git config --global user.email "bot@yourdomain.com"
+          git config --global user.name "MotoGPBot"
+          git config --global user.email "bot@motogp.com"
           git add sports_update.csv
-          git commit -m "Data Refresh: $(date)" || echo "No changes to commit"
-          
-          # Pull latest changes from your browser edits to avoid 'rejected' error
+          git commit -m "Official Calendar Update: $(date)" || echo "No changes found"
           git pull --rebase origin main
           git push origin main
