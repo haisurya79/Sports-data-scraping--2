@@ -1,23 +1,23 @@
-Tournament,Event Name,Date,Location,Source
-MotoGP 2026,Unknown GP,27 Feb - 01 Mar,UP NEXT,Official MotoGP.com
-MotoGP 2026,Unknown GP,20 Mar - 22 Mar,BRAZIL,Official MotoGP.com
-MotoGP 2026,Unknown GP,27 Mar - 29 Mar,AUSTIN,Official MotoGP.com
-MotoGP 2026,Unknown GP,10 Apr - 12 Apr,QATAR,Official MotoGP.com
-MotoGP 2026,Unknown GP,24 Apr - 26 Apr,SPAIN,Official MotoGP.com
-MotoGP 2026,Unknown GP,08 May - 10 May,FRANCE,Official MotoGP.com
-MotoGP 2026,Unknown GP,15 May - 17 May,CATALONIA,Official MotoGP.com
-MotoGP 2026,Unknown GP,29 May - 31 May,ITALY,Official MotoGP.com
-MotoGP 2026,Unknown GP,05 Jun - 07 Jun,HUNGARY,Official MotoGP.com
-MotoGP 2026,Unknown GP,19 Jun - 21 Jun,CZECHIA,Official MotoGP.com
-MotoGP 2026,Unknown GP,26 Jun - 28 Jun,NETHERLANDS,Official MotoGP.com
-MotoGP 2026,Unknown GP,10 Jul - 12 Jul,GERMANY,Official MotoGP.com
-MotoGP 2026,Unknown GP,07 Aug - 09 Aug,GREAT BRITAIN,Official MotoGP.com
-MotoGP 2026,Unknown GP,28 Aug - 30 Aug,ARAGON,Official MotoGP.com
-MotoGP 2026,Unknown GP,11 Sep - 13 Sep,SAN MARINO,Official MotoGP.com
-MotoGP 2026,Unknown GP,18 Sep - 20 Sep,AUSTRIA,Official MotoGP.com
-MotoGP 2026,Unknown GP,02 Oct - 04 Oct,JAPAN,Official MotoGP.com
-MotoGP 2026,Unknown GP,09 Oct - 11 Oct,INDONESIA,Official MotoGP.com
-MotoGP 2026,Unknown GP,23 Oct - 25 Oct,AUSTRALIA,Official MotoGP.com
-MotoGP 2026,Unknown GP,30 Oct - 01 Nov,MALAYSIA,Official MotoGP.com
-MotoGP 2026,Unknown GP,13 Nov - 15 Nov,PORTUGAL,Official MotoGP.com
-MotoGP 2026,Unknown GP,20 Nov - 22 Nov,VALENCIA,Official MotoGP.com
+Round,Event Name,Location,FP1,Practice,FP2,Q1,Q2,Sprint,Warm Up,Race
+1,USA,NA,NA,NA,NA,NA,NA,NA,NA,NA
+2,AUSTRALIA,NA,NA,NA,NA,NA,NA,NA,NA,NA
+3,AUSTRIA,NA,NA,NA,NA,NA,NA,NA,NA,NA
+4,BRAZIL,NA,NA,NA,NA,NA,NA,NA,NA,NA
+5,CATALONIA,NA,NA,NA,NA,NA,NA,NA,NA,NA
+6,CZECHIA,NA,NA,NA,NA,NA,NA,NA,NA,NA
+7,SPAIN,NA,NA,NA,NA,NA,NA,NA,NA,NA
+8,FRANCE,NA,NA,NA,NA,NA,NA,NA,NA,NA
+9,GERMANY,NA,NA,NA,NA,NA,NA,NA,NA,NA
+10,GREAT BRITAIN,NA,NA,NA,NA,NA,NA,NA,NA,NA
+11,HUNGARY,NA,NA,NA,NA,NA,NA,NA,NA,NA
+12,INDONESIA,NA,NA,NA,NA,NA,NA,NA,NA,NA
+13,ITALY,NA,NA,NA,NA,NA,NA,NA,NA,NA
+14,JAPAN,NA,NA,NA,NA,NA,NA,NA,NA,NA
+15,MALAYSIA,NA,NA,NA,NA,NA,NA,NA,NA,NA
+16,NETHERLANDS,NA,NA,NA,NA,NA,NA,NA,NA,NA
+17,PORTUGAL,NA,NA,NA,NA,NA,NA,NA,NA,NA
+18,QATAR,NA,NA,NA,NA,NA,NA,NA,NA,NA
+19,SAN MARINO,NA,NA,NA,NA,NA,NA,NA,NA,NA
+20,ARAGON,NA,NA,NA,NA,NA,NA,NA,NA,NA
+21,THAILAND,NA,03:45,NA,NA,NA,NA,NA,NA,NA
+22,VALENCIA,NA,NA,NA,NA,NA,NA,NA,NA,NA
