@@ -3,6 +3,10 @@ name: Manual Sports Data Refresh
 on:
   workflow_dispatch:
 
+# Add this block specifically to tell GitHub this job needs to write data
+permissions:
+  contents: write
+
 jobs:
   scrape_and_update:
     runs-on: ubuntu-latest
@@ -16,8 +20,7 @@ jobs:
           python-version: '3.9'
 
       - name: Install Libraries
-        run: |
-          pip install pandas lxml requests html5lib beautifulsoup4
+        run: pip install pandas lxml requests html5lib beautifulsoup4
 
       - name: Execute Scraper
         run: python scraper.py
@@ -27,5 +30,7 @@ jobs:
           git config --global user.name "ManualBot"
           git config --global user.email "bot@yourdomain.com"
           git add sports_update.csv
+          # The '|| echo' part prevents the action from failing if there's no new data
           git commit -m "Manual Refresh: $(date)" || echo "No changes to commit"
           git push
+          
