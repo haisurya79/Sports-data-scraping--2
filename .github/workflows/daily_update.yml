@@ -3,7 +3,6 @@ name: Manual Sports Data Refresh
 on:
   workflow_dispatch:
 
-# Add this block specifically to tell GitHub this job needs to write data
 permissions:
   contents: write
 
@@ -13,6 +12,8 @@ jobs:
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v3
+        with:
+          fetch-depth: 0 # Fetches all history so it can sync properly
 
       - name: Set up Python
         uses: actions/setup-python@v4
@@ -29,8 +30,15 @@ jobs:
         run: |
           git config --global user.name "ManualBot"
           git config --global user.email "bot@yourdomain.com"
-          git add sports_update.csv
-          # The '|| echo' part prevents the action from failing if there's no new data
-          git commit -m "Manual Refresh: $(date)" || echo "No changes to commit"
-          git push
           
+          # 1. Add the file
+          git add sports_update.csv
+          
+          # 2. Commit (but don't fail if nothing changed)
+          git commit -m "Manual Refresh: $(date)" || echo "No changes to commit"
+          
+          # 3. SYNC before pushing (This fixes the 'rejected' error)
+          git pull --rebase origin main
+          
+          # 4. Push to the repository
+          git push origin main
