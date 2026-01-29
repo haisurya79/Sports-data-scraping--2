@@ -11,8 +11,8 @@ HEADERS = {
 # Source 1: The Master Calendar for ALL sports in 2026
 # Source 2: The T20 World Cup specific page
 SOURCES = [
-    {"name": "Global Calendar", "url": "https://en.wikipedia.org/wiki/2026_in_sports"},
-    {"name": "T20 World Cup", "url": "https://en.wikipedia.org/wiki/2026_Men%27s_T20_World_Cup"}
+    {"name": "Global Calendar", "url": "https://www.motogp.com/en/calendar?view=list"},
+    {"name": "T20 World Cup", "url": "https://www.motogp.com/en/calendar?view=list"}
 ]
 
 def run_manual_update():
