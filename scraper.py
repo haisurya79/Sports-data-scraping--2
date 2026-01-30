@@ -7,96 +7,99 @@ URL = "https://www.motogp.com/en/calendar?view=list"
 
 def run_scraper():
     results = []
-    print("🚀 Launching Fail-Safe Scraper...")
+    print("🚀 Launching Chronological Scraper (Human-Mimic Mode)...")
 
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True)
         context = browser.new_context(viewport={'width': 1920, 'height': 1080})
         page = context.new_page()
 
-        # 1. Load and wait for the cards to exist
-        page.goto(URL, wait_until="domcontentloaded", timeout=90000)
-        page.wait_for_selector('.calendar-listing__event-container', timeout=30000)
+        # 1. Load the page and wait for the framework
+        page.goto(URL, wait_until="networkidle", timeout=90000)
         
-        # Force a scroll to trigger all lazy-loaded text
-        page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
-        page.wait_for_timeout(3000)
+        # 2. THE HUMAN SCROLL: 
+        # MotoGP lazy-loads race cards. We scroll 1000px at a time to "wake up" the data.
+        for _ in range(10):
+            page.mouse.wheel(0, 1000)
+            page.wait_for_timeout(1000)
 
-        # 2. Grab all cards
-        cards = page.locator('.calendar-listing__event-container').all()
-        print(f"✅ Found {len(cards)} events. Extracting...")
+        # 3. Targeted Extraction
+        # We find every container and extract text purely by position to keep chronology
+        containers = page.locator('.calendar-listing__event-container').all()
+        print(f"✅ Found {len(containers)} events. Processing in order...")
 
-        for i, card in enumerate(cards):
-            # Capture the raw text of the whole card immediately
-            full_card_text = card.inner_text()
-            lines = [line.strip() for line in full_card_text.split('\n') if line.strip()]
+        for i, card in enumerate(containers):
+            # Extract card text
+            text = card.inner_text()
+            lines = [l.strip() for l in text.split('\n') if l.strip()]
 
-            # --- PART A: RELIABLE CITY & DATE EXTRACTION ---
-            # We look for specific patterns in the lines
-            city = "NA"
-            date_range = "NA"
-            
-            for line in lines:
-                # Date Pattern: "27 FEB - 01 MAR"
-                if re.search(r'\d{1,2}\s[A-Z]{3}\s-\s\d{1,2}\s[A-Z]{3}', line):
-                    date_range = line
-                # City Pattern: Usually the first line that is all UPPERCASE and not a date
-                elif line.isupper() and len(line) > 3 and "GRAND PRIX" not in line and city == "NA":
-                    city = line
-
-            # --- PART B: DATE CALCULATOR ---
-            try:
-                # Get the ending date (e.g., "01 MAR") to use as the Sunday anchor
-                end_date_str = date_range.split('-')[-1].strip()
-                anchor_date = datetime.strptime(f"{end_date_str} 2026", "%d %b %Y")
-            except:
-                anchor_date = None
-
+            # Default Row
             row = {
-                "Sr. No": i + 1,
-                "City": city,
-                "Dates": date_range,
+                "Sr. No": i + 1, "City": "NA", "Dates": "NA",
                 "FP1": "NA", "Practice": "NA", "FP2": "NA",
                 "Q1": "NA", "Q2": "NA", "Sprint": "NA",
                 "Warm Up": "NA", "Race": "NA"
             }
 
-            # --- PART C: SESSION TIMES ---
-            def get_dated_time(label, blob, dt):
-                # Pattern: "FRI / 09:00 Free Practice Nr. 1"
-                pattern = rf"([A-Z]{{3}})\s/\s(\d{{2}}:\d{{2}})\s+{re.escape(label)}"
+            # CITY & DATE: Based on 2026 site structure
+            # Thailand (Round 1) should be: lines[0]=Dates, lines[2]=City
+            if len(lines) >= 3:
+                # Look for date pattern: 27 FEB - 01 MAR
+                date_match = re.search(r'\d{1,2}\s[A-Z]{3}\s-\s\d{1,2}\s[A-Z]{3}', text)
+                row["Dates"] = date_match.group(0) if date_match else lines[0]
+                
+                # City is usually the large uppercase line
+                for line in lines:
+                    if line.isupper() and "GRAND PRIX" not in line and len(line) > 3:
+                        row["City"] = line
+                        break
+
+            # SESSION TIMES: We extract "FRI / 09:15" and attach the correct Date
+            try:
+                # Use the end date (Sunday) as our anchor
+                end_str = row["Dates"].split('-')[-1].strip()
+                anchor_dt = datetime.strptime(f"{end_str} 2026", "%d %b %Y")
+            except:
+                anchor_dt = None
+
+            def parse_time(keyword, blob, anchor):
+                # Pattern: Day / Time followed by Session Name
+                pattern = rf"([A-Z]{{3}})\s/\s(\d{{2}}:\d{{2}})\s+{re.escape(keyword)}"
                 match = re.search(pattern, blob, re.IGNORECASE)
-                if match and dt:
-                    day_code = match.group(1).upper() # "FRI"
-                    time_val = match.group(2)        # "09:00"
-                    
-                    # Offset logic relative to Sunday (0)
+                if match and anchor:
+                    day_code = match.group(1).upper()
+                    time_val = match.group(2)
+                    # Offset based on Sunday (0)
                     offsets = {"THU": -3, "FRI": -2, "SAT": -1, "SUN": 0}
-                    session_date = dt + timedelta(days=offsets.get(day_code, 0))
-                    
-                    # Return formatted: "01 Mar SUN / 09:00"
-                    return f"{session_date.strftime('%d %b')} {day_code} / {time_val}"
+                    session_dt = anchor + timedelta(days=offsets.get(day_code, 0))
+                    return f"{session_dt.strftime('%d %b')} {day_code} / {time_val}"
                 return "NA"
 
-            if "session times" in full_card_text.lower():
-                row["FP1"] = get_dated_time("Free Practice Nr. 1", full_card_text, anchor_date)
-                row["Practice"] = get_dated_time("Practice", full_card_text, anchor_date)
-                row["FP2"] = get_dated_time("Free Practice Nr. 2", full_card_text, anchor_date)
-                row["Q1"] = get_dated_time("Qualifying Nr. 1", full_card_text, anchor_date)
-                row["Q2"] = get_dated_time("Qualifying Nr. 2", full_card_text, anchor_date)
-                row["Sprint"] = get_dated_time("Tissot Sprint", full_card_text, anchor_date)
-                row["Warm Up"] = get_dated_time("Warm Up", full_card_text, anchor_date)
-                row["Race"] = get_dated_time("Grand Prix", full_card_text, anchor_date)
+            if "session times" in text.lower():
+                row["FP1"] = parse_time("Free Practice Nr. 1", text, anchor_dt)
+                row["Practice"] = parse_time("Practice", text, anchor_dt)
+                row["FP2"] = parse_time("Free Practice Nr. 2", text, anchor_dt)
+                row["Q1"] = parse_time("Qualifying Nr. 1", text, anchor_dt)
+                row["Q2"] = parse_time("Qualifying Nr. 2", text, anchor_dt)
+                row["Sprint"] = parse_time("Tissot Sprint", text, anchor_dt)
+                row["Warm Up"] = parse_time("Warm Up", text, anchor_dt)
+                row["Race"] = parse_time("Grand Prix", text, anchor_dt)
 
             results.append(row)
 
         browser.close()
 
-    # Step 3: Save results
+    # Step 4: Export with strictly ordered columns
     df = pd.DataFrame(results)
-    cols = ["Sr. No", "City", "Dates", "FP1", "Practice", "FP2", "Q1", "Q2", "Sprint", "Warm Up", "Race"]
-    df[cols].to_csv("sports_update.csv", index=False)
-    print(f"📊 Done! Extracted {len(results)} events to sports_update.csv")
+    df = df[["Sr. No", "City", "Dates", "FP1", "Practice", "FP2", "Q1", "Q2", "Sprint", "Warm Up", "Race"]]
+    
+    # Validation: Ensure Thailand is first
+    if not df.empty and "THAILAND" not in df.iloc[0]['City'].upper():
+        print("⚠️ Warning: Chronology might be off. Sorting by Sr. No...")
+        df = df.sort_values(by="Sr. No")
+
+    df.to_csv("sports_update.csv", index=False)
+    print("✨ Successfully generated 'sports_update.csv' with chronological data.")
 
 if __name__ == "__main__":
     run_scraper()
