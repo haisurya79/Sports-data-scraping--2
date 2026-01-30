@@ -1,40 +1,90 @@
-import pandas as pd
+import requests
+import csv
+from datetime import datetime
 
-# Example URL: Replace this with your preferred sports schedule source
-# Wikipedia is excellent for "Revisions" because the community updates it in minutes.
-SOURCE_URL = "https://en.wikipedia.org/wiki/2026_ICC_Men%27s_T20_World_Cup"
+# API Endpoints
+BASE_URL = "https://api.motogp.pulselive.com/motogp/v1"
+# Season UUID for 2026 (Retrieved via /results/seasons)
+SEASON_UUID = "60742f56-6f7d-410a-85d8-41716301362e" # Standard 2026 ID
+CATEGORY_UUID = "e8c110ad-64aa-4e8e-8a86-f2f152f6a942" # MotoGP category
 
-def run_manual_update():
-    try:
-        # 1. Fetch all tables from the page
-        tables = pd.read_html(SOURCE_URL)
+def format_session_date(iso_date_str):
+    """Converts ISO date to 'Day Name DDMMYY HH:MM'"""
+    if not iso_date_str:
+        return "NA"
+    dt = datetime.fromisoformat(iso_date_str.replace('Z', '+00:00'))
+    return dt.strftime("%A %d%m%y %H:%M")
+
+def get_calendar_data():
+    print("Fetching calendar events...")
+    events_resp = requests.get(f"{BASE_URL}/results/events?seasonUuid={SEASON_UUID}")
+    events = events_resp.json()
+    
+    # Define columns requested by user
+    headers = [
+        "Sl. No", "Country", "city", "period", "free practice nr1", 
+        "Practice", "Free practice NR2", "Qualifiying NR1", 
+        "Qualifying NR2", "TISSOT Sprint", "Warm Up", "Grand prix"
+    ]
+    
+    rows = []
+    
+    for idx, event in enumerate(events, 1):
+        event_name = event.get("short_name", "")
+        country = event.get("country", {}).get("name", "")
+        city = event.get("location", "")
         
-        # 2. Select the specific table (usually fixtures or group stage)
-        # You may need to change the index [3] depending on the page layout
-        df = tables[3] 
-
-        # 3. Standardize the data to your specific format
-        # Adding 'Tournament' and 'Team Count' columns manually
-        df['Tournament Name'] = "T20 World Cup 2026"
-        df['Total Teams'] = len(df)
+        # Format Period (e.g., 27 Feb - 01 Mar)
+        start_date = datetime.fromisoformat(event['start_date'].split('T')[0])
+        end_date = datetime.fromisoformat(event['end_date'].split('T')[0])
+        period = f"{start_date.strftime('%d %b')} - {end_date.strftime('%d %b')}"
         
-        # 4. Clean up headers to match your request:
-        # (Tournament Name, No. of teams, Fixtures schedule, Who won what, Results)
-        # Note: This logic assumes the source table has these details.
-        output_columns = {
-            'Date': 'Fixtures Schedule',
-            'Venue': 'Location',
-            'Result': 'Results',
-            'Winner': 'Who Won What'
+        row = {
+            "Sl. No": idx,
+            "Country": country,
+            "city": city,
+            "period": period,
+            "free practice nr1": "NA",
+            "Practice": "NA",
+            "Free practice NR2": "NA",
+            "Qualifiying NR1": "NA",
+            "Qualifying NR2": "NA",
+            "TISSOT Sprint": "NA",
+            "Warm Up": "NA",
+            "Grand prix": "NA"
         }
-        df.rename(columns=output_columns, inplace=True)
+        
+        # Fetch detailed sessions for this event
+        event_id = event['id']
+        sessions_url = f"{BASE_URL}/results/sessions?eventUuid={event_id}&categoryUuid={CATEGORY_UUID}"
+        sessions_resp = requests.get(sessions_url)
+        
+        if sessions_resp.status_code == 200:
+            sessions = sessions_resp.json()
+            for s in sessions:
+                # Mapping API session names to your specific column headers
+                s_name = s['type'] # e.g., FP1, PR, FP2, Q1, Q2, SPR, WUP, RAC
+                s_date = format_session_date(s.get('date'))
+                
+                if s_name == "FP1": row["free practice nr1"] = s_date
+                elif s_name == "PR": row["Practice"] = s_date
+                elif s_name == "FP2": row["Free practice NR2"] = s_date
+                elif s_name == "Q1": row["Qualifiying NR1"] = s_date
+                elif s_name == "Q2": row["Qualifying NR2"] = s_date
+                elif s_name == "SPR": row["TISSOT Sprint"] = s_date
+                elif s_name == "WUP": row["Warm Up"] = s_date
+                elif s_name == "RAC": row["Grand prix"] = s_date
+        
+        rows.append(row)
+        print(f"Processed: {country} ({city})")
 
-        # 5. Export to CSV for your website
-        df.to_csv("sports_update.csv", index=False)
-        print("Success: sports_update.csv has been refreshed manually.")
-
-    except Exception as e:
-        print(f"Error during manual refresh: {e}")
+    # Save to CSV
+    with open('motogp_calendar_2026.csv', 'w', newline='', encoding='utf-8') as f:
+        writer = csv.DictWriter(f, fieldnames=headers, delimiter=';')
+        writer.writeheader()
+        writer.writerows(rows)
+    
+    print("\nSuccess! Data saved to 'motogp_calendar_2026.csv'")
 
 if __name__ == "__main__":
-    run_manual_update()
+    get_calendar_data()
