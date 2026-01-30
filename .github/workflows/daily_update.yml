@@ -1,40 +1,19 @@
-name: Manual Sports Data Refresh
-
+name: MotoGP Auto Update
 on:
-  workflow_dispatch:
-
-permissions:
-  contents: write
-
+  schedule: [{cron: "0 0 * * *"}] # Runs daily
+  workflow_dispatch: # Allows manual run
 jobs:
-  scrape_and_update:
+  build:
     runs-on: ubuntu-latest
-    timeout-minutes: 20  # Increased time for deep scraping
-
     steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Set up Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: '3.10'
-
-      - name: Install Dependencies
-        run: |
-          pip install pandas requests playwright
+      - uses: actions/checkout@v3
+      - install-deps: run: |
+          pip install pandas playwright
           playwright install chromium
-
-      - name: Run Deep Scraper
-        run: python scraper.py
-
-      - name: Save Results
-        run: |
-          git config --global user.name "MotoGPBot"
-          git config --global user.email "bot@motogp.com"
-          git add sports_update.csv
-          git commit -m "Detailed Schedule Update: $(date)" || echo "No changes found"
-          git pull --rebase origin main
-          git push origin main
+      - run-script: run: python scraper.py
+      - commit: run: |
+          git config user.name "Automated"
+          git config user.email "actions@github.com"
+          git add motogp_2026_schedule.csv
+          git commit -m "Update Calendar" || exit 0
+          git push
