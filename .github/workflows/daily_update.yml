@@ -1,19 +1,32 @@
-name: MotoGP Auto Update
+name: Manual Sports Data Refresh
+
+# This section ensures NO automatic timing. 
+# It ONLY runs when you trigger it.
 on:
-  schedule: [{cron: "0 0 * * *"}] # Runs daily
-  workflow_dispatch: # Allows manual run
+  workflow_dispatch:
+
 jobs:
-  build:
+  scrape_and_update:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
-      - install-deps: run: |
-          pip install pandas playwright
-          playwright install chromium
-      - run-script: run: python scraper.py
-      - commit: run: |
-          git config user.name "Automated"
-          git config user.email "actions@github.com"
-          git add motogp_2026_schedule.csv
-          git commit -m "Update Calendar" || exit 0
+      - name: Checkout Repository
+        uses: actions/checkout@v3
+
+      - name: Set up Python Environment
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+
+      - name: Install Scraping Tools
+        run: pip install pandas lxml requests html5lib
+
+      - name: Execute Manual Scrape
+        run: python scraper.py
+
+      - name: Save and Push Updates to Website
+        run: |
+          git config --global user.name "ManualBot"
+          git config --global user.email "bot@yourdomain.com"
+          git add sports_update.csv
+          git commit -m "Manual Refresh Triggered: $(date)"
           git push
